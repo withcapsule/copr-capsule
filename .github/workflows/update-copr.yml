@@ -1,0 +1,48 @@
+name: Update COPR
+
+on:
+    repository_dispatch:
+        types: [update-copr]
+
+jobs:
+    submit:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install build tools
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y rpm
+                  pip install copr-cli
+
+            - name: Configure copr-cli
+              run: |
+                  mkdir -p ~/.config
+                  echo "${{ secrets.COPR_CONFIG }}" > ~/.config/copr
+
+            - name: Update spec version
+              run: |
+                  VERSION="${{ github.event.client_payload.version }}"
+                  sed -i "s/^Version:.*/Version:        ${VERSION}/" capsule.spec
+                  sed -i "s/^Release:.*/Release:        1%{?dist}/" capsule.spec
+
+            - name: Commit updated spec
+              run: |
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+                  git add capsule.spec
+                  git commit -m "chore: bump to ${{ github.event.client_payload.version }}"
+                  git push
+
+            - name: Build SRPM
+              run: |
+                  mkdir -p ~/rpmbuild/{SPECS,SRPMS}
+                  cp capsule.spec ~/rpmbuild/SPECS/
+                  rpmbuild -bs ~/rpmbuild/SPECS/capsule.spec
+
+            - name: Submit to COPR
+              run: |
+                  SRPM=$(ls ~/rpmbuild/SRPMS/capsule-*.src.rpm)
+                  copr-cli build --nowait "${{ secrets.COPR_USERNAME }}/capsule" "$SRPM"
