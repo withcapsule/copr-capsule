@@ -1,5 +1,5 @@
 Name:           capsule
-Version:        0.2
+Version:        0.2.1
 Release:        1%{?dist}
 Summary:        CLI for the Capsule server
 License:        MIT
